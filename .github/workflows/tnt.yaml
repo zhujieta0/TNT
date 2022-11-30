@@ -1,0 +1,57 @@
+name: subfind and xray
+
+on:
+    workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@master
+
+
+      - name: Setup Dependencies
+        run: sudo apt-get install libpcap-dev 
+           
+        
+
+      - name: Cache Go
+        id: cache-go
+        uses: actions/cache@v2
+        with:
+          path: /home/runner/go
+          key: ${{ runner.os }}-go
+
+
+      - name: TNT scan urls
+        run: |
+          wget https://github.com/chaitin/xray/releases/download/1.9.3/xray_linux_amd64.zip
+          unzip xray_linux_amd64.zip
+          mv xray_linux_amd64 xray
+          #set +e ;for i in $(cat active_urls.txt ); do ./xray webscan --basic-crawler $i --html-output output/`date +%Y%m%d%H%M%S`.html;done
+          #cat output/*.html >> output/xray.html
+          
+          set +e ;for i in $(cat output/active_urls.txt ); do ./xray webscan --plugins xss,sqldet --basic-crawler $i --json-output `date +%Y%m%d%H%M%S`.json;done
+          cat *.json >> xray.json
+        shell: bash
+        
+      - name: Sorting the output results
+        run: |
+          find output -type f -exec sort {} -o {} \;
+        shell: bash
+
+      - name: Create local changes
+        run: |
+          git add active_urls.txt
+          git add xray.json
+      - name: Commit results to Github
+        run: |
+          git config --local user.email "jinbao1986@qq.com"
+          git config --global user.name "TNT"
+          git commit -m "InCloud Report" -a --allow-empty
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref }}
